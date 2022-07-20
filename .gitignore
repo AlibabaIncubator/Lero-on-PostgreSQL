@@ -1,0 +1,10 @@
+postgresql*
+pgsql
+.vscode
+data
+auncel/*tpch*
+auncel/*log*
+auncel/dump_card_with_score.txt
+__pycache__
+.ipynb*
+auncel/test_script/*log*

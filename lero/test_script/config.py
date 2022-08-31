@@ -15,10 +15,10 @@ TIMEOUT = 30000000
 PG_DB_PATH = "../../data"
 
 # Rap conf (No modification is required by default)
-AUNCEL_SERVER_PORT = 14567
-AUNCEL_SERVER_HOST = "localhost"
-AUNCEL_SERVER_PATH = "../"
-AUNCEL_DUMP_CARD_FILE = "dump_card_with_score.txt"
+LERO_SERVER_PORT = 14567
+LERO_SERVER_HOST = "localhost"
+LERO_SERVER_PATH = "../"
+LERO_DUMP_CARD_FILE = "dump_card_with_score.txt"
 
 # Test conf (No modification is required by default)
 LOG_PATH = "./log/query_latency"

@@ -34,7 +34,7 @@ class PgHelper():
         pool.join()
 
 
-class AuncelHelper():
+class LeroHelper():
     def __init__(self, queries, query_num_per_chunk, output_query_latency_file, 
                 test_queries, model_prefix, topK) -> None:
         self.queries = queries
@@ -43,8 +43,8 @@ class AuncelHelper():
         self.test_queries = test_queries
         self.model_prefix = model_prefix
         self.topK = topK
-        self.auncel_server_path = AUNCEL_SERVER_PATH
-        self.auncel_card_file_path = os.path.join(AUNCEL_SERVER_PATH, AUNCEL_DUMP_CARD_FILE)
+        self.lero_server_path = LERO_SERVER_PATH
+        self.lero_card_file_path = os.path.join(LERO_SERVER_PATH, LERO_DUMP_CARD_FILE)
 
     def chunks(self, lst, n):
         """Yield successive n-sized chunks from lst."""
@@ -52,11 +52,10 @@ class AuncelHelper():
             yield lst[i:i + n]
 
     def start(self, pool_num):
-        auncel_chunks = list(self.chunks(self.queries, self.query_num_per_chunk))
-        print("Using PG optimizer to initial Auncel training")
+        lero_chunks = list(self.chunks(self.queries, self.query_num_per_chunk))
 
         run_args = self.get_run_args()
-        for c_idx, chunk in enumerate(auncel_chunks):
+        for c_idx, chunk in enumerate(lero_chunks):
             pool = Pool(pool_num)
             for fp, q in chunk:
                 self.run_pairwise(q, fp, run_args, self.output_query_latency_file, self.output_query_latency_file + "_exploratory", pool)
@@ -71,9 +70,9 @@ class AuncelHelper():
     def retrain(self, model_name):
         training_data_file = self.output_query_latency_file + ".training"
         create_training_file(training_data_file, self.output_query_latency_file, self.output_query_latency_file + "_exploratory")
-        print("retrain Auncel model:", model_name, "with file", training_data_file)
+        print("retrain Lero model:", model_name, "with file", training_data_file)
         
-        cmd_str = "cd " + self.auncel_server_path + " && python3.8 train.py" \
+        cmd_str = "cd " + self.lero_server_path + " && python3.8 train.py" \
                                                 + " --training_data " + os.path.abspath(training_data_file) \
                                                 + " --model_name " + model_name \
                                                 + " --training_type 1"
@@ -85,11 +84,11 @@ class AuncelHelper():
 
     def load_model(self, model_name):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((AUNCEL_SERVER_HOST, AUNCEL_SERVER_PORT))
-        json_str = json.dumps({"msg_type":"load", "model_path": os.path.abspath(AUNCEL_SERVER_PATH + model_name)})
+        s.connect((LERO_SERVER_HOST, LERO_SERVER_PORT))
+        json_str = json.dumps({"msg_type":"load", "model_path": os.path.abspath(LERO_SERVER_PATH + model_name)})
         print("load_model", json_str)
 
-        s.sendall(bytes(json_str + "*AUNCEL_END*", "utf-8"))
+        s.sendall(bytes(json_str + "*LERO_END*", "utf-8"))
         reply_json = s.recv(1024)
         s.close()
         print(reply_json)
@@ -102,18 +101,18 @@ class AuncelHelper():
 
     def get_run_args(self):
         run_args = []
-        run_args.append("SET enable_auncel TO True")
+        run_args.append("SET enable_lero TO True")
         return run_args
 
     def get_card_test_args(self, card_file_name):
         run_args = []
-        run_args.append("SET auncel_joinest_fname TO '" + card_file_name + "'")
+        run_args.append("SET lero_joinest_fname TO '" + card_file_name + "'")
         return run_args
 
     def run_pairwise(self, q, fp, run_args, output_query_latency_file, exploratory_query_latency_file, pool):
         explain_query(q, run_args)
         policy_entities = []
-        with open(self.auncel_card_file_path, 'r') as f:
+        with open(self.lero_card_file_path, 'r') as f:
             lines = f.readlines()
             lines = [line.strip().split(";") for line in lines]
             for line in lines:
@@ -127,7 +126,7 @@ class AuncelHelper():
             if isinstance(entity, CardinalityGuidedEntity):
                 card_str = "\n".join(entity.card_str.strip().split(" "))
                 # ensure that the cardinality file will not be changed during planning
-                card_file_name = "auncel_" + fp + "_" + str(i) + ".txt"
+                card_file_name = "lero_" + fp + "_" + str(i) + ".txt"
                 card_file_path = os.path.join(PG_DB_PATH, card_file_name)
                 with open(card_file_path, "w") as card_file:
                     card_file.write(card_str)
@@ -138,8 +137,8 @@ class AuncelHelper():
 
     def predict(self, plan):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect((AUNCEL_SERVER_HOST, AUNCEL_SERVER_PORT))
-        s.sendall(bytes(json.dumps({"msg_type":"predict", "Plan":plan}) + "*AUNCEL_END*", "utf-8"))
+        s.connect((LERO_SERVER_HOST, LERO_SERVER_PORT))
+        s.sendall(bytes(json.dumps({"msg_type":"predict", "Plan":plan}) + "*LERO_END*", "utf-8"))
         reply_json = json.loads(s.recv(1024))
         assert reply_json['msg_type'] == 'succ'
         s.close()
@@ -180,8 +179,8 @@ if __name__ == "__main__":
         pool_num = args.pool_num
     print("pool_num:", pool_num)
 
-    ALGO_LIST = ["auncel", "pg"]
-    algo = "auncel"
+    ALGO_LIST = ["lero", "pg"]
+    algo = "lero"
     if args.algo:
         assert args.algo.lower() in ALGO_LIST
         algo = args.algo.lower()
@@ -215,5 +214,5 @@ if __name__ == "__main__":
             topK = args.topK
         print("topK", topK)
         
-        helper = AuncelHelper(queries, query_num_per_chunk, output_query_latency_file, test_queries, model_prefix, topK)
+        helper = LeroHelper(queries, query_num_per_chunk, output_query_latency_file, test_queries, model_prefix, topK)
         helper.start(pool_num)

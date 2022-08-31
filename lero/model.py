@@ -62,9 +62,9 @@ def right_child(x: SampleEntity):
     return x.get_right()
 
 
-class AuncelNet(nn.Module):
+class LeroNet(nn.Module):
     def __init__(self, input_feature_dim) -> None:
-        super(AuncelNet, self).__init__()
+        super(LeroNet, self).__init__()
         self.input_feature_dim = input_feature_dim
         self._cuda = False
         self.device = None
@@ -96,7 +96,7 @@ class AuncelNet(nn.Module):
         return super().cuda()
 
 
-class AuncelModel():
+class LeroModel():
     def __init__(self, feature_generator) -> None:
         self._net = None
         self._feature_generator = feature_generator
@@ -107,7 +107,7 @@ class AuncelModel():
         with open(_input_feature_dim_path(path), "rb") as f:
             self._input_feature_dim = joblib.load(f)
 
-        self._net = AuncelNet(self._input_feature_dim)
+        self._net = LeroNet(self._input_feature_dim)
         if CUDA:
             self._net.load_state_dict(torch.load(_nn_path(path)))
         else:
@@ -153,7 +153,7 @@ class AuncelModel():
             input_feature_dim = len(X[0].get_feature())
             print("input_feature_dim:", input_feature_dim)
 
-            self._net = AuncelNet(input_feature_dim)
+            self._net = LeroNet(input_feature_dim)
             self._input_feature_dim = input_feature_dim
             if CUDA:
                 self._net = self._net.cuda(device)
@@ -219,7 +219,7 @@ class AuncelModel():
         return pred
 
 
-class AuncelModelPairWise(AuncelModel):
+class LeroModelPairWise(LeroModel):
     def __init__(self, feature_generator) -> None:
         super().__init__(feature_generator)
 
@@ -237,7 +237,7 @@ class AuncelModelPairWise(AuncelModel):
             input_feature_dim = len(X1[0].get_feature())
             print("input_feature_dim:", input_feature_dim)
 
-            self._net = AuncelNet(input_feature_dim)
+            self._net = LeroNet(input_feature_dim)
             self._input_feature_dim = input_feature_dim
             if CUDA:
                 self._net = self._net.cuda(device)

@@ -1,7 +1,7 @@
-# Auncel (A Learned Query Optimizer by Ranking Plans)
-Query optimizer (QO) is the core part, as well as the most challenging problem, in DBMS. 
-We witness that the relative order (or rank) of plans actually matters to QO. Learning the rough rank scores is much easier than the unique latency value. To this end, we design Auncel, a new learned QO system following the rank-based paradigm.  
-And this repository is a naive demo of Auncel based on PostgreSQL. In the future, we will release a development framework that facilitates the integration of machine learning algorithms on the database while avoiding direct modifications to the source code, and then formally do the code refactoring of this project on it. 
+# Lero: A Learning-to-Rank Query Optimizer
+Query optimizer is the core part, as well as the most challenging problem, in DBMS. 
+We witness that the relative order (or rank) of plans actually matters to optimizer. Learning the rough rank scores is much easier than the unique latency value. To this end, we design Lero, a new learned query optimizer system following the rank-based paradigm.  
+And this repository is a naive demo of Lero based on PostgreSQL. In the future, we will release a development framework that facilitates the integration of machine learning algorithms on the database while avoiding direct modifications to the source code, and then formally do the code refactoring of this project on it. 
 
 ---
 ## Setup
@@ -15,7 +15,7 @@ tar -xvf postgresql-13.1.tar.bz2
 
 # 2. apply some modifications on it
 cd postgresql-13.1
-git apply ../0001-init-auncel.patch
+git apply ../0001-init-lero.patch
 
 # 3. install PostgreSQL
 make
@@ -30,8 +30,8 @@ max_parallel_workers_per_gather = 0
 ---
 
 ## Run the Demo
-In this demo, we use an independent server to simulate most of the features of Auncel.
-Auncel is mainly composed of two stages:   
+In this demo, we use an independent server to simulate most of the features of Lero.
+Lero is mainly composed of two stages:   
 
 1. generate different execution plans according to different policies  
 2. use a model to select an optimal execution plan
@@ -47,8 +47,8 @@ The port and host of the server are configured in the server.conf.
 PostgreSQL uses the same preset port and host to communicate with the server.
 If you want to modify these two configurations, you need to execute two additional commands in PSQL every time you execute a query.
 ```bash
-SET auncel_server_host TO "new_host";
-SET auncel_server_port TO new_port;
+SET lero_server_host TO "new_host";
+SET lero_server_port TO new_port;
 ```
 
 
@@ -58,25 +58,25 @@ Relevant scripts are placed in "./test_script".
 **And please modify the configurations in "config.py" before execution to ensure the script can correctly connect to the server and control the database.**
 
 Use the following command to start demo. 
-This script will load the training queries and test queries, and the model will be retrained every 'query_num_per_chunk' queries. Auncel will collect performance on the test queries after each training phase.
+This script will load the training queries and test queries, and the model will be retrained every 'query_num_per_chunk' queries. Lero will collect performance on the test queries after each training phase.
 
 ```bash
 # output_query_latency_file: the final executed plan will be output to this file
 # model_prefix: prefix of model name
 # topK: the number of plans that can be explored by each query
-python train_model.py --query_path tpch_train.txt --test_query_path tpch_test.txt --algo auncel --query_num_per_chunk 20 --output_query_latency_file auncel_tpch.log --model_prefix tpch_test_model --topK 3
+python train_model.py --query_path tpch_train.txt --test_query_path tpch_test.txt --algo lero --query_num_per_chunk 20 --output_query_latency_file lero_tpch.log --model_prefix tpch_test_model --topK 3
 ```
 Four kinds of files will be generated gradually during the execution of this script:
-1. auncel_tpch.log  
-    The best plan considered by model in Auncel will be executed and the results will be output to this file.
-2. auncel_tpch.log_exploratory  
+1. lero_tpch.log  
+    The best plan considered by model in Lero will be executed and the results will be output to this file.
+2. lero_tpch.log_exploratory  
     Other plans for pairwise training of each query will be executed and output to this file.
-3. auncel_tpch.log.training  
-    Integrate the results of "auncel_tpch.log" and "auncel_tpch.log_exploratory" for model training.
-4. auncel_tpch.log_tpch_test_model_i  
+3. lero_tpch.log.training  
+    Integrate the results of "lero_tpch.log" and "lero_tpch.log_exploratory" for model training.
+4. lero_tpch.log_tpch_test_model_i  
     The performance of the model after i-th training.
 
-In order to compare the results, after Auncel executes all the queries, we use PostgreSQL to execute them again.
+In order to compare the results, after Lero executes all the queries, we use PostgreSQL to execute them again.
 The plans of the training set and the test set will be saved in "pg_tpch_train.log" and "pg_tpch_test.log" respectively.
 ```bash
 python train_model.py --query_path tpch_train.txt  --algo pg --output_query_latency_file pg_tpch_train.log
@@ -85,11 +85,11 @@ python train_model.py --query_path tpch_test.txt --algo pg --output_query_latenc
 
 ### Result Visualization
 Here we can use jupyter to easily visualize the results of the experiment (see visualization.ipynb for details).  
-In the training set, Auncel will gradually surpass PostgreSQL after the first training.
-And in the test set, Auncel runs 1.2x faster than PostgreSQL.
+In the training set, Lero will gradually surpass PostgreSQL after the first training.
+And in the test set, Lero runs 1.2x faster than PostgreSQL.
 <center class="half">
-    <img src="auncel/test_script/train.jpg" width="200"/>
-    <img src="auncel/test_script/test.jpg" width="200"/>
+    <img src="lero/test_script/train.jpg" width="200"/>
+    <img src="lero/test_script/test.jpg" width="200"/>
 </center>
 
 
@@ -103,7 +103,7 @@ TODO
 
 ---
 ## Re-produce
-We also put some files here to help you reproduce the result of some experiments in paper. You can fine them in "auncel/reproduce".  
+We also put some files here to help you reproduce the result of some experiments in paper. You can fine them in "lero/reproduce".  
 
 1. Create database  
 We dump the data of STATS to facilitate you to rebuild the database. (You can rebuild JOB by [join-order-benchmark](https://github.com/gregrahn/join-order-benchmark))

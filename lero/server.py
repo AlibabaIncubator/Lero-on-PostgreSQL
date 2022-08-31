@@ -2,13 +2,13 @@ import json
 import socketserver
 
 from card_picker import CardPicker
-from model import AuncelModel
-from test_script.config import AUNCEL_DUMP_CARD_FILE
+from model import LeroModel
+from test_script.config import LERO_DUMP_CARD_FILE
 from utils import (OptState, PlanCardReplacer, get_tree_signature, print_log,
                    read_config)
 
 
-class AuncelJSONHandler(socketserver.BaseRequestHandler):
+class LeroJSONHandler(socketserver.BaseRequestHandler):
     def setup(self):
         pass
 
@@ -20,9 +20,9 @@ class AuncelJSONHandler(socketserver.BaseRequestHandler):
                 # no more data, connection is finished.
                 return
 
-            if (null_loc := str_buf.find("*AUNCEL_END*")) != -1:
+            if (null_loc := str_buf.find("*LERO_END*")) != -1:
                 json_msg = str_buf[:null_loc].strip()
-                str_buf = str_buf[null_loc + len("*AUNCEL_END*"):]
+                str_buf = str_buf[null_loc + len("*LERO_END*"):]
                 if json_msg:
                     try:
                         self.handle_msg(json_msg)
@@ -66,12 +66,14 @@ class AuncelJSONHandler(socketserver.BaseRequestHandler):
         self.request.close()
 
     def _init(self, json_obj, reply_msg):
+        qid = json_obj['query_id']
+        print("init query", qid)
         card_picker = CardPicker(json_obj['rows_array'], json_obj['table_array'],
                                 self.server.swing_factor_lower_bound, self.server.swing_factor_upper_bound, self.server.swing_factor_step)
+        print(json_obj['table_array'], json_obj['rows_array'])
         plan_card_replacer = PlanCardReplacer(json_obj['table_array'], json_obj['rows_array'])
         opt_state = OptState(card_picker, plan_card_replacer, self.server.dump_card)
         
-        qid = json_obj['query_id']
         self.server.opt_state_dict[qid] = opt_state
         reply_msg['msg_type'] = "succ"
 
@@ -109,12 +111,12 @@ class AuncelJSONHandler(socketserver.BaseRequestHandler):
         reply_msg['latency'] = y
 
     def _load(self, json_obj, reply_msg):
-        print("load new Auncel model")
+        print("load new Lero model")
         model_path = json_obj['model_path']
-        auncel_model = AuncelModel(None)
-        auncel_model.load(model_path)
-        self.server.model = auncel_model
-        self.server.feature_generator = auncel_model._feature_generator
+        lero_model = LeroModel(None)
+        lero_model.load(model_path)
+        self.server.model = lero_model
+        self.server.feature_generator = lero_model._feature_generator
         reply_msg['msg_type'] = "succ"
 
     def _reset(self, reply_msg):
@@ -141,8 +143,8 @@ class AuncelJSONHandler(socketserver.BaseRequestHandler):
             f.write(w_str)
 
 
-def start_server(listen_on, port, model: AuncelModel):
-    with socketserver.TCPServer((listen_on, port), AuncelJSONHandler) as server:
+def start_server(listen_on, port, model: LeroModel):
+    with socketserver.TCPServer((listen_on, port), LeroJSONHandler) as server:
         server.model = model
         server.feature_generator = model._feature_generator if model is not None else None
         server.opt_state_dict = {}
@@ -159,7 +161,7 @@ def start_server(listen_on, port, model: AuncelModel):
 
         # dump card
         server.dump_card = True
-        server.dump_card_with_score_path = AUNCEL_DUMP_CARD_FILE
+        server.dump_card_with_score_path = LERO_DUMP_CARD_FILE
 
         server.serve_forever()
 
@@ -170,11 +172,11 @@ if __name__ == "__main__":
     listen_on = config["ListenOn"]
     print_log(f"Listening on {listen_on} port {port}", "./server.log", True)
 
-    auncel_model = None
+    lero_model = None
     if "ModelPath" in config:
-        auncel_model = AuncelModel(None)
-        auncel_model.load(config["ModelPath"])
+        lero_model = LeroModel(None)
+        lero_model.load(config["ModelPath"])
         print("Load model", config["ModelPath"])
 
     print("start server process...")
-    start_server(listen_on, port, auncel_model)
+    start_server(listen_on, port, lero_model)

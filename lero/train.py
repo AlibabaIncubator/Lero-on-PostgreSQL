@@ -2,7 +2,7 @@ import argparse
 import math
 
 from feature import *
-from model import AuncelModel, AuncelModelPairWise
+from model import LeroModel, LeroModelPairWise
 
 
 def _load_pointwise_plans(path):
@@ -75,11 +75,11 @@ def training_pairwise(tuning_model_path, model_name, training_data_file, pretrai
     X1, X2 = _load_pairwise_plans(training_data_file)
 
     tuning_model = tuning_model_path is not None
-    auncel_model = None
+    lero_model = None
     if tuning_model:
-        auncel_model = AuncelModelPairWise(None)
-        auncel_model.load(tuning_model_path)
-        feature_generator = auncel_model._feature_generator
+        lero_model = LeroModelPairWise(None)
+        lero_model.load(tuning_model_path)
+        feature_generator = lero_model._feature_generator
     else:
         feature_generator = FeatureGenerator()
         feature_generator.fit(X1 + X2)
@@ -96,23 +96,23 @@ def training_pairwise(tuning_model_path, model_name, training_data_file, pretrai
     print("Training data set size = " + str(len(X1)))
 
     if not tuning_model:
-        assert auncel_model == None
-        auncel_model = AuncelModelPairWise(feature_generator)
-    auncel_model.fit(X1, X2, Y1, Y2, tuning_model)
+        assert lero_model == None
+        lero_model = LeroModelPairWise(feature_generator)
+    lero_model.fit(X1, X2, Y1, Y2, tuning_model)
 
     print("saving model...")
-    auncel_model.save(model_name)
+    lero_model.save(model_name)
 
 
 def training_with_rank_score(tuning_model_path, model_name, training_data_file, pretrain=False, rank_score_type=0):
     X, Y = compute_rank_score(training_data_file, pretrain, rank_score_type)
 
     tuning_model = tuning_model_path is not None
-    auncel_model = None
+    lero_model = None
     if tuning_model:
-        auncel_model = AuncelModel(None)
-        auncel_model.load(tuning_model_path)
-        feature_generator = auncel_model._feature_generator
+        lero_model = LeroModel(None)
+        lero_model.load(tuning_model_path)
+        feature_generator = lero_model._feature_generator
     else:
         feature_generator = FeatureGenerator()
         feature_generator.fit(X)
@@ -123,24 +123,24 @@ def training_with_rank_score(tuning_model_path, model_name, training_data_file, 
     print("Training data set size = " + str(len(local_features)))
 
     if not tuning_model:
-        assert auncel_model == None
-        auncel_model = AuncelModel(feature_generator)
+        assert lero_model == None
+        lero_model = LeroModel(feature_generator)
 
-    auncel_model.fit(local_features, Y, tuning_model)
+    lero_model.fit(local_features, Y, tuning_model)
 
     print("saving model...")
-    auncel_model.save(model_name)
+    lero_model.save(model_name)
 
 
 def training_pointwise(tuning_model_path, model_name, training_data_file):
     X = _load_pointwise_plans(training_data_file)
 
     tuning_model = tuning_model_path is not None
-    auncel_model = None
+    lero_model = None
     if tuning_model:
-        auncel_model = AuncelModel(None)
-        auncel_model.load(tuning_model_path)
-        feature_generator = auncel_model._feature_generator
+        lero_model = LeroModel(None)
+        lero_model.load(tuning_model_path)
+        feature_generator = lero_model._feature_generator
     else:
         feature_generator = FeatureGenerator()
         feature_generator.fit(X)
@@ -150,13 +150,13 @@ def training_pointwise(tuning_model_path, model_name, training_data_file):
     print("Training data set size = " + str(len(local_features)))
 
     if not tuning_model:
-        assert auncel_model == None
-        auncel_model = AuncelModel(feature_generator)
+        assert lero_model == None
+        lero_model = LeroModel(feature_generator)
 
-    auncel_model.fit(local_features, y, tuning_model)
+    lero_model.fit(local_features, y, tuning_model)
 
     print("saving model...")
-    auncel_model.save(model_name)
+    lero_model.save(model_name)
 
 
 if __name__ == "__main__":

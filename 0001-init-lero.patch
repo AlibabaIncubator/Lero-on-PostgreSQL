@@ -1,32 +1,32 @@
-From 152ae884abf9a188dc63f88f9661253ae57c4695 Mon Sep 17 00:00:00 2001
+From 5470978551a4f9ddcabd860051def80a927e46e2 Mon Sep 17 00:00:00 2001
 From: root <root@68c00add18ad>
 Date: Tue, 5 Jul 2022 09:38:06 +0000
-Subject: [PATCH] init auncel
+Subject: [PATCH] init lero
 
 ---
  src/backend/Makefile                  |    2 +-
- src/backend/auncel/Makefile           |   20 +
- src/backend/auncel/auncel_extension.c |  373 ++
- src/backend/auncel/utils.c            |  391 ++
- src/backend/auncel/yyjson.c           | 7448 +++++++++++++++++++++++++
+ src/backend/lero/Makefile             |   20 +
+ src/backend/lero/lero_extension.c     |  373 ++
+ src/backend/lero/utils.c              |  391 ++
+ src/backend/lero/yyjson.c             | 7448 +++++++++++++++++++++++++
  src/backend/optimizer/path/costsize.c |   46 +
  src/backend/optimizer/plan/planner.c  |   10 +-
  src/backend/utils/misc/guc.c          |   43 +
- src/include/auncel/auncel_extension.h |   37 +
- src/include/auncel/utils.h            |   54 +
- src/include/auncel/yyjson.h           | 4221 ++++++++++++++
+ src/include/lero/lero_extension.h     |   37 +
+ src/include/lero/utils.h              |   54 +
+ src/include/lero/yyjson.h             | 4221 ++++++++++++++
  src/include/optimizer/cost.h          |    4 +
  12 files changed, 12646 insertions(+), 3 deletions(-)
- create mode 100644 src/backend/auncel/Makefile
- create mode 100644 src/backend/auncel/auncel_extension.c
- create mode 100644 src/backend/auncel/utils.c
- create mode 100644 src/backend/auncel/yyjson.c
- create mode 100644 src/include/auncel/auncel_extension.h
- create mode 100644 src/include/auncel/utils.h
- create mode 100644 src/include/auncel/yyjson.h
+ create mode 100644 src/backend/lero/Makefile
+ create mode 100644 src/backend/lero/lero_extension.c
+ create mode 100644 src/backend/lero/utils.c
+ create mode 100644 src/backend/lero/yyjson.c
+ create mode 100644 src/include/lero/lero_extension.h
+ create mode 100644 src/include/lero/utils.h
+ create mode 100644 src/include/lero/yyjson.h
 
 diff --git a/src/backend/Makefile b/src/backend/Makefile
-index 9706a95..015371c 100644
+index 9706a95..62734bf 100644
 --- a/src/backend/Makefile
 +++ b/src/backend/Makefile
 @@ -19,7 +19,7 @@ include $(top_builddir)/src/Makefile.global
@@ -34,43 +34,43 @@ index 9706a95..015371c 100644
  SUBDIRS = access bootstrap catalog parser commands executor foreign lib libpq \
  	main nodes optimizer partitioning port postmaster \
 -	regex replication rewrite \
-+	auncel regex replication rewrite \
++	lero regex replication rewrite \
  	statistics storage tcop tsearch utils $(top_builddir)/src/timezone \
  	jit
  
-diff --git a/src/backend/auncel/Makefile b/src/backend/auncel/Makefile
+diff --git a/src/backend/lero/Makefile b/src/backend/lero/Makefile
 new file mode 100644
-index 0000000..4833544
+index 0000000..e33cf58
 --- /dev/null
-+++ b/src/backend/auncel/Makefile
++++ b/src/backend/lero/Makefile
 @@ -0,0 +1,20 @@
 +#-------------------------------------------------------------------------
 +#
 +# Makefile--
-+#    Makefile for auncel
++#    Makefile for lero
 +#
 +# IDENTIFICATION
-+#    src/backend/auncel/Makefile
++#    src/backend/lero/Makefile
 +#
 +#-------------------------------------------------------------------------
 +
-+subdir = src/backend/auncel
++subdir = src/backend/lero
 +top_builddir = ../../..
 +include $(top_builddir)/src/Makefile.global
 +
 +OBJS = \
 +	utils.o \
 +	yyjson.o \
-+	auncel_extension.o
++	lero_extension.o
 +
 +include $(top_srcdir)/src/backend/common.mk
-diff --git a/src/backend/auncel/auncel_extension.c b/src/backend/auncel/auncel_extension.c
+diff --git a/src/backend/lero/lero_extension.c b/src/backend/lero/lero_extension.c
 new file mode 100644
-index 0000000..671e1ac
+index 0000000..3cb5a6c
 --- /dev/null
-+++ b/src/backend/auncel/auncel_extension.c
++++ b/src/backend/lero/lero_extension.c
 @@ -0,0 +1,373 @@
-+#include "auncel/auncel_extension.h"
++#include "lero/lero_extension.h"
 +#include "miscadmin.h"
 +#include "optimizer/appendinfo.h"
 +#include "optimizer/joininfo.h"
@@ -80,8 +80,8 @@ index 0000000..671e1ac
 +#include "partitioning/partbounds.h"
 +#include "nodes/bitmapset.h"
 +#include "utils/memutils.h"
-+#include "auncel/utils.h"
-+#include "auncel/yyjson.h"
++#include "lero/utils.h"
++#include "lero/yyjson.h"
 +#include <string.h>
 +#include <stdlib.h>
 +
@@ -89,11 +89,11 @@ index 0000000..671e1ac
 +
 +#define CARD_MAX_NUM 25000
 +
-+bool enable_auncel = false;
++bool enable_lero = false;
 +
-+// auncel server configuration
-+int auncel_server_port = 14567;
-+char *auncel_server_host = "localhost";
++// lero server configuration
++int lero_server_port = 14567;
++char *lero_server_host = "localhost";
 +
 +// the number of join cardinalities to be calculated in this query
 +int join_card_num = -1;
@@ -101,10 +101,10 @@ index 0000000..671e1ac
 +double original_card_list[CARD_MAX_NUM] = {-1.0};
 +// indicates whether to record the original join cardinalities or read the new join cardinalities after zooming
 +bool record_original_card_phase = false;
-+// the new join cardinalities after zooming given by auncel
-+double auncel_card_list[CARD_MAX_NUM] = {-1.0};
-+// the number of join cardinalities given by auncel
-+int max_auncel_join_card_idx = -1;
++// the new join cardinalities after zooming given by lero
++double lero_card_list[CARD_MAX_NUM] = {-1.0};
++// the number of join cardinalities given by lero
++int max_lero_join_card_idx = -1;
 +// recored the names of the input tables involved in each join
 +RelatedTable *join_input_tables[CARD_MAX_NUM] = {NULL};
 +
@@ -114,7 +114,7 @@ index 0000000..671e1ac
 +
 +
 +static
-+AuncelPlan *get_auncel_plan(int i, Query *parse, const char *queryString,
++LeroPlan *get_lero_plan(int i, Query *parse, const char *queryString,
 +					  int cursorOptions,
 +					  ParamListInfo boundParams, int *early_stop);
 +static 
@@ -129,7 +129,7 @@ index 0000000..671e1ac
 +static 
 +void remove_opt_state();
 +
-+void auncel_pgsysml_set_joinrel_size_estimates(PlannerInfo *root, RelOptInfo *rel,
++void lero_pgsysml_set_joinrel_size_estimates(PlannerInfo *root, RelOptInfo *rel,
 +											RelOptInfo *outer_rel,
 +											RelOptInfo *inner_rel,
 +											SpecialJoinInfo *sjinfo,
@@ -150,8 +150,8 @@ index 0000000..671e1ac
 +	}
 +	else
 +	{
-+		if (cur_card_idx <= max_auncel_join_card_idx) {
-+			rows = auncel_card_list[cur_card_idx];
++		if (cur_card_idx <= max_lero_join_card_idx) {
++			rows = lero_card_list[cur_card_idx];
 +		} else {
 +			rows = rel->rows;
 +		}
@@ -160,23 +160,23 @@ index 0000000..671e1ac
 +	rel->rows = rows;
 +}
 +
-+PlannedStmt *auncel_pgsysml_hook_planner(Query *parse, const char *queryString,
++PlannedStmt *lero_pgsysml_hook_planner(Query *parse, const char *queryString,
 +									  int cursorOptions,
 +									  ParamListInfo boundParams)
 +{
-+	if (!enable_auncel)
++	if (!enable_lero)
 +	{
 +		return standard_planner(parse, queryString, cursorOptions, boundParams);
 +	}
 +
 +	query_unique_id = get_query_unique_id(queryString);
 +
-+	AuncelPlan *plan_for_card[PLAN_MAX_SAMPLES];
++	LeroPlan *plan_for_card[PLAN_MAX_SAMPLES];
 +	Query *query_copy;
 +	int conn_fd;
 +	record_original_card_phase = false;
 +
-+	AuncelPlan* best = NULL;
++	LeroPlan* best = NULL;
 +	double best_latency;
 +	int best_idx = 0;
 +	join_card_num = 0;
@@ -186,7 +186,7 @@ index 0000000..671e1ac
 +	{
 +		// Plan the query for this card list.
 +		query_copy = copyObject(parse);
-+		AuncelPlan* p = get_auncel_plan(i, query_copy,
++		LeroPlan* p = get_lero_plan(i, query_copy,
 +										queryString, cursorOptions, boundParams, &early_stop);
 +		if (best == NULL || p->latency < best_latency) {
 +			best = p;
@@ -212,7 +212,7 @@ index 0000000..671e1ac
 +}
 +
 +static
-+AuncelPlan *get_auncel_plan(int i, Query *parse, const char *queryString,
++LeroPlan *get_lero_plan(int i, Query *parse, const char *queryString,
 +					  int cursorOptions,
 +					  ParamListInfo boundParams, int* early_stop)
 +{
@@ -220,7 +220,7 @@ index 0000000..671e1ac
 +	// and send the default cardinality list to the server
 +	record_original_card_phase = i == 0;
 +	cur_card_idx = 0;
-+	AuncelPlan *p = (AuncelPlan *)palloc(sizeof(AuncelPlan));
++	LeroPlan *p = (LeroPlan *)palloc(sizeof(LeroPlan));
 +	elog(WARNING, "Query string:%s", queryString);
 +
 +	if (!record_original_card_phase) {
@@ -248,11 +248,11 @@ index 0000000..671e1ac
 +static 
 +void send_default_rows(const char *queryString)
 +{
-+	int conn_fd = connect_to_server(auncel_server_host, auncel_server_port);
++	int conn_fd = connect_to_server(lero_server_host, lero_server_port);
 +	if (conn_fd == -1)
 +	{
-+		elog(WARNING, "%s:%d", auncel_server_host, auncel_server_port);
-+		elog(ERROR, "Unable to connect to Auncel server.");
++		elog(WARNING, "%s:%d", lero_server_host, lero_server_port);
++		elog(ERROR, "Unable to connect to Lero server.");
 +		return;
 +	}
 +
@@ -295,7 +295,7 @@ index 0000000..671e1ac
 +		free(json);
 +	}
 +
-+	// check whether Auncel is initialized
++	// check whether Lero is initialized
 +	char *msg = send_and_receive_msg(conn_fd, send_json);
 +	yyjson_doc *msg_doc = parse_json_str(msg);
 +	pfree(msg);
@@ -306,7 +306,7 @@ index 0000000..671e1ac
 +	if (strcmp(msg_char, MSG_ERROR) == 0)
 +	{
 +		yyjson_doc_free(msg_doc);
-+		elog(ERROR, "fail to init Auncel");
++		elog(ERROR, "fail to init Lero");
 +		return;
 +	}
 +
@@ -325,10 +325,10 @@ index 0000000..671e1ac
 +	char *json = yyjson_mut_write(json_doc, YYJSON_WRITE_PRETTY, NULL);
 +	json = concat_str(json, MSG_END_FLAG);
 +
-+	int conn_fd = connect_to_server(auncel_server_host, auncel_server_port);
++	int conn_fd = connect_to_server(lero_server_host, lero_server_port);
 +	if (conn_fd == -1)
 +	{
-+		elog(ERROR, "Unable to connect to Auncel server.");
++		elog(ERROR, "Unable to connect to Lero server.");
 +	}
 +
 +	char *msg = send_and_receive_msg(conn_fd, json);
@@ -343,7 +343,7 @@ index 0000000..671e1ac
 +	{
 +		yyjson_doc_free(msg_doc);
 +		close(conn_fd);
-+		elog(ERROR, "fail to get score from Auncel");
++		elog(ERROR, "fail to get score from Lero");
 +	} else {
 +		*early_stop = yyjson_get_int(yyjson_obj_get(msg_json_obj, MSG_FINISH));
 +		double score = yyjson_get_real(yyjson_obj_get(msg_json_obj, MSG_SCORE));
@@ -367,10 +367,10 @@ index 0000000..671e1ac
 +		free(json);
 +	}
 +
-+	int conn_fd = connect_to_server(auncel_server_host, auncel_server_port);
++	int conn_fd = connect_to_server(lero_server_host, lero_server_port);
 +	if (conn_fd == -1)
 +	{
-+		elog(ERROR, "Unable to connect to Auncel server.");
++		elog(ERROR, "Unable to connect to Lero server.");
 +	}
 +	char *msg = send_and_receive_msg(conn_fd, send_json);
 +	yyjson_doc *msg_doc = parse_json_str(msg);
@@ -387,7 +387,7 @@ index 0000000..671e1ac
 +	if (strcmp(msg_char, MSG_ERROR) == 0)
 +	{
 +		yyjson_doc_free(msg_doc);
-+		elog(ERROR, "fail to get latency from Auncel");
++		elog(ERROR, "fail to get latency from Lero");
 +	} else {
 +		yyjson_val *joinrel_card_list_val = yyjson_obj_get(msg_json_obj, "join_card");		
 +		yyjson_val *val;
@@ -398,10 +398,10 @@ index 0000000..671e1ac
 +			i++;
 +			double real = yyjson_get_real(val);
 +			printf("%f", real);
-+			auncel_card_list[i] = real;
++			lero_card_list[i] = real;
 +		}
 +
-+		max_auncel_join_card_idx = i;
++		max_lero_join_card_idx = i;
 +		yyjson_doc_free(msg_doc);
 +	}
 +}
@@ -420,10 +420,10 @@ index 0000000..671e1ac
 +		free(json);
 +	}
 +
-+	int conn_fd = connect_to_server(auncel_server_host, auncel_server_port);
++	int conn_fd = connect_to_server(lero_server_host, lero_server_port);
 +	if (conn_fd == -1)
 +	{
-+		elog(ERROR, "Unable to connect to Auncel server.");
++		elog(ERROR, "Unable to connect to Lero server.");
 +	}
 +	char *msg = send_and_receive_msg(conn_fd, send_json);
 +	yyjson_doc *msg_doc = parse_json_str(msg);
@@ -444,11 +444,11 @@ index 0000000..671e1ac
 +	yyjson_doc_free(msg_doc);
 +}
 \ No newline at end of file
-diff --git a/src/backend/auncel/utils.c b/src/backend/auncel/utils.c
+diff --git a/src/backend/lero/utils.c b/src/backend/lero/utils.c
 new file mode 100644
-index 0000000..151b8b8
+index 0000000..33eb186
 --- /dev/null
-+++ b/src/backend/auncel/utils.c
++++ b/src/backend/lero/utils.c
 @@ -0,0 +1,391 @@
 +#include "postgres.h"
 +
@@ -458,7 +458,7 @@ index 0000000..151b8b8
 +#include <netinet/in.h>
 +#include <unistd.h>
 +#include "nodes/pg_list.h"
-+#include "auncel/utils.h"
++#include "lero/utils.h"
 +#include "c.h"
 +#include "utils/lsyscache.h"
 +#include "optimizer/planmain.h"
@@ -842,11 +842,11 @@ index 0000000..151b8b8
 +	}
 +}
 \ No newline at end of file
-diff --git a/src/backend/auncel/yyjson.c b/src/backend/auncel/yyjson.c
+diff --git a/src/backend/lero/yyjson.c b/src/backend/lero/yyjson.c
 new file mode 100644
-index 0000000..76ce54d
+index 0000000..2b34f19
 --- /dev/null
-+++ b/src/backend/auncel/yyjson.c
++++ b/src/backend/lero/yyjson.c
 @@ -0,0 +1,7448 @@
 +/*==============================================================================
 + * Created by Yaoyuan on 2019/3/9.
@@ -856,7 +856,7 @@ index 0000000..76ce54d
 + * https://github.com/ibireme/yyjson/blob/master/LICENSE
 + *============================================================================*/
 +
-+#include "auncel/yyjson.h"
++#include "lero/yyjson.h"
 +#include <stdio.h>
 +#include <math.h>
 +
@@ -8297,14 +8297,14 @@ index 0000000..76ce54d
 +#   pragma warning(pop)
 +#endif /* warning suppress end */
 diff --git a/src/backend/optimizer/path/costsize.c b/src/backend/optimizer/path/costsize.c
-index ef7e828..1de4624 100644
+index ef7e828..26074d5 100644
 --- a/src/backend/optimizer/path/costsize.c
 +++ b/src/backend/optimizer/path/costsize.c
 @@ -96,6 +96,7 @@
  #include "utils/selfuncs.h"
  #include "utils/spccache.h"
  #include "utils/tuplesort.h"
-+#include "auncel/auncel_extension.h"
++#include "lero/lero_extension.h"
  
  
  #define LOG2(x)  (log(x) / 0.693147180559945)
@@ -8312,13 +8312,13 @@ index ef7e828..1de4624 100644
   */
  #define APPEND_CPU_COST_MULTIPLIER 0.5
  
-+/** Auncel Extension */
++/** Lero Extension */
 +#define CARD_EST_QUERY_NUM 30000
 +double 		join_card_ests[CARD_EST_QUERY_NUM] = {0.0};
 +int         join_est_no = 0;
 +int			max_join_est_no = CARD_EST_QUERY_NUM - 1;
-+char        *auncel_joinest_fname = "";
-+/** ==== Auncel Extension ==== */
++char        *lero_joinest_fname = "";
++/** ==== Lero Extension ==== */
  
  double		seq_page_cost = DEFAULT_SEQ_PAGE_COST;
  double		random_page_cost = DEFAULT_RANDOM_PAGE_COST;
@@ -8326,7 +8326,7 @@ index ef7e828..1de4624 100644
  static double page_size(double tuples, int width);
  static double get_parallel_divisor(Path *path);
  
-+/** Auncel Extension */
++/** Lero Extension */
 +void
 +read_from_fspn_join_estimate(const char* filename){
 +    FILE* fp = fopen(filename, "r");
@@ -8342,7 +8342,7 @@ index ef7e828..1de4624 100644
 +	max_join_est_no = cnt;
 +    fclose(fp);
 +}
-+/** ==== Auncel Extension ==== */
++/** ==== Lero Extension ==== */
  
  /*
   * clamp_row_est
@@ -8350,8 +8350,8 @@ index ef7e828..1de4624 100644
  										   inner_rel->rows,
  										   sjinfo,
  										   restrictlist);
-+	if (enable_auncel) {
-+        auncel_pgsysml_set_joinrel_size_estimates(root, rel, outer_rel,
++	if (enable_lero) {
++        lero_pgsysml_set_joinrel_size_estimates(root, rel, outer_rel,
 +                                               inner_rel, sjinfo, restrictlist);
 +    }
  }
@@ -8361,10 +8361,10 @@ index ef7e828..1de4624 100644
  			break;
  	}
  
-+	/** Auncel extension */
-+    if (auncel_joinest_fname != NULL && strlen(auncel_joinest_fname) > 0) {
++	/** Lero extension */
++    if (lero_joinest_fname != NULL && strlen(lero_joinest_fname) > 0) {
 +        if (join_est_no == 0) {
-+            read_from_fspn_join_estimate(auncel_joinest_fname);
++            read_from_fspn_join_estimate(lero_joinest_fname);
 +        }
 +
 +		if (join_est_no <= max_join_est_no) {
@@ -8376,20 +8376,20 @@ index ef7e828..1de4624 100644
 +			return clamp_row_est(join_est);
 +		}
 +    }
-+	/** ==== Auncel Extension ==== */
++	/** ==== Lero Extension ==== */
 +
  	return clamp_row_est(nrows);
  }
  
 diff --git a/src/backend/optimizer/plan/planner.c b/src/backend/optimizer/plan/planner.c
-index 767d0ed..0c0ee6b 100644
+index 767d0ed..468930f 100644
 --- a/src/backend/optimizer/plan/planner.c
 +++ b/src/backend/optimizer/plan/planner.c
 @@ -64,6 +64,7 @@
  #include "utils/rel.h"
  #include "utils/selfuncs.h"
  #include "utils/syscache.h"
-+#include "auncel/auncel_extension.h"
++#include "lero/lero_extension.h"
  
  /* GUC parameters */
  double		cursor_tuple_fraction = DEFAULT_CURSOR_TUPLE_FRACTION;
@@ -8400,8 +8400,8 @@ index 767d0ed..0c0ee6b 100644
 -	else
 -		result = standard_planner(parse, query_string, cursorOptions, boundParams);
 +	else {
-+		if (enable_auncel) {
-+			result = auncel_pgsysml_hook_planner(parse, query_string, cursorOptions, boundParams);
++		if (enable_lero) {
++			result = lero_pgsysml_hook_planner(parse, query_string, cursorOptions, boundParams);
 +		} else{
 +			result = standard_planner(parse, query_string, cursorOptions, boundParams);
 +		}
@@ -8410,14 +8410,14 @@ index 767d0ed..0c0ee6b 100644
  }
  
 diff --git a/src/backend/utils/misc/guc.c b/src/backend/utils/misc/guc.c
-index 1683629..7a2d5f9 100644
+index 1683629..405c45a 100644
 --- a/src/backend/utils/misc/guc.c
 +++ b/src/backend/utils/misc/guc.c
 @@ -98,6 +98,7 @@
  #include "utils/tzparser.h"
  #include "utils/varlena.h"
  #include "utils/xml.h"
-+#include "auncel/auncel_extension.h"
++#include "lero/lero_extension.h"
  
  #ifndef PG_KRB_SRVTAB
  #define PG_KRB_SRVTAB ""
@@ -8426,11 +8426,11 @@ index 1683629..7a2d5f9 100644
  	},
  
 +	{
-+		{"enable_auncel", PGC_USERSET, UNGROUPED,
-+			gettext_noop("Enable Auncel."),
++		{"enable_lero", PGC_USERSET, UNGROUPED,
++			gettext_noop("Enable Lero."),
 +			NULL
 +		},
-+		&enable_auncel,
++		&enable_lero,
 +		false,
 +		NULL, NULL, NULL
 +    },
@@ -8443,11 +8443,11 @@ index 1683629..7a2d5f9 100644
  	},
  
 +	{
-+		{"auncel_server_port", PGC_USERSET, UNGROUPED,
-+			gettext_noop("Sets the port of Auncel server."),
++		{"lero_server_port", PGC_USERSET, UNGROUPED,
++			gettext_noop("Sets the port of Lero server."),
 +			NULL
 +		},
-+		&auncel_server_port,
++		&lero_server_port,
 +		14567, 0, 65535,
 +		NULL, NULL, NULL
 +    },
@@ -8460,23 +8460,23 @@ index 1683629..7a2d5f9 100644
  	},
  
 +	{
-+		{"auncel_joinest_fname", PGC_USERSET, UNGROUPED,
++		{"lero_joinest_fname", PGC_USERSET, UNGROUPED,
 +				gettext_noop("Sets the file name of ML-based join size estimation."),
 +				NULL,
 +				GUC_IS_NAME
 +		},
-+		&auncel_joinest_fname,
++		&lero_joinest_fname,
 +		"",
 +		check_cluster_name, NULL, NULL
 +    },
 +
 +	{
-+		{"auncel_server_host", PGC_USERSET, UNGROUPED,
-+				gettext_noop("Sets the host of Auncel server."),
++		{"lero_server_host", PGC_USERSET, UNGROUPED,
++				gettext_noop("Sets the host of Lero server."),
 +				NULL,
 +				GUC_IS_NAME
 +		},
-+		&auncel_server_host,
++		&lero_server_host,
 +		"localhost",
 +		check_cluster_name, NULL, NULL
 +    },	
@@ -8484,11 +8484,11 @@ index 1683629..7a2d5f9 100644
  	/* End-of-list marker */
  	{
  		{NULL, 0, 0, NULL, NULL}, NULL, NULL, NULL, NULL, NULL
-diff --git a/src/include/auncel/auncel_extension.h b/src/include/auncel/auncel_extension.h
+diff --git a/src/include/lero/lero_extension.h b/src/include/lero/lero_extension.h
 new file mode 100644
-index 0000000..363b572
+index 0000000..c492a0d
 --- /dev/null
-+++ b/src/include/auncel/auncel_extension.h
++++ b/src/include/lero/lero_extension.h
 @@ -0,0 +1,37 @@
 +#include "postgres.h"
 +#include "fmgr.h"
@@ -8497,42 +8497,42 @@ index 0000000..363b572
 +#include "nodes/pg_list.h"
 +#include "utils/guc.h"
 +
-+#ifndef AUNCEL_EXTENSION
-+#define AUNCEL_EXTENSION
-+extern bool enable_auncel;
++#ifndef LERO_EXTENSION
++#define LERO_EXTENSION
++extern bool enable_lero;
 +
-+extern int auncel_server_port;
++extern int lero_server_port;
 +
-+extern char *auncel_server_host;
++extern char *lero_server_host;
 +
-+typedef struct AuncelPlan {
++typedef struct LeroPlan {
 +	double *card;
 +
 +	PlannedStmt* plan;
 +
 +	double latency;
-+} AuncelPlan;
++} LeroPlan;
 +
 +typedef struct RelatedTable {
 +    List *tables;
 +} RelatedTable;
 +
-+extern void auncel_pgsysml_set_joinrel_size_estimates(PlannerInfo *root, RelOptInfo *rel,
++extern void lero_pgsysml_set_joinrel_size_estimates(PlannerInfo *root, RelOptInfo *rel,
 +						   RelOptInfo *outer_rel,
 +						   RelOptInfo *inner_rel,
 +						   SpecialJoinInfo *sjinfo,
 +						   List *restrictlist);
 +
-+extern PlannedStmt* auncel_pgsysml_hook_planner(Query *parse, const char *queryString,
++extern PlannedStmt* lero_pgsysml_hook_planner(Query *parse, const char *queryString,
 +                                int cursorOptions,
 +                                ParamListInfo boundParams);
 +#endif
 \ No newline at end of file
-diff --git a/src/include/auncel/utils.h b/src/include/auncel/utils.h
+diff --git a/src/include/lero/utils.h b/src/include/lero/utils.h
 new file mode 100644
-index 0000000..184c3fb
+index 0000000..f34d9e1
 --- /dev/null
-+++ b/src/include/auncel/utils.h
++++ b/src/include/lero/utils.h
 @@ -0,0 +1,54 @@
 +#include "yyjson.h"
 +#include "postgres.h"
@@ -8541,10 +8541,10 @@ index 0000000..184c3fb
 +#include "nodes/pg_list.h"
 +#include "optimizer/planner.h"
 +#include "parser/parsetree.h"
-+#include "auncel_extension.h"
++#include "lero_extension.h"
 +
-+#ifndef AUNCEL_UTILS
-+#define AUNCEL_UTILS
++#ifndef LERO_UTILS
++#define LERO_UTILS
 +
 +// msg related
 +#define MSG_TYPE "msg_type"
@@ -8555,7 +8555,7 @@ index 0000000..184c3fb
 +#define MSG_SCORE "latency"
 +#define MSG_ERROR "error"
 +#define MSG_FINISH "finish"
-+#define MSG_END_FLAG "*AUNCEL_END*"
++#define MSG_END_FLAG "*LERO_END*"
 +
 +extern int 
 +connect_to_server(const char* host, int port);
@@ -8589,11 +8589,11 @@ index 0000000..184c3fb
 +
 +#endif
 \ No newline at end of file
-diff --git a/src/include/auncel/yyjson.h b/src/include/auncel/yyjson.h
+diff --git a/src/include/lero/yyjson.h b/src/include/lero/yyjson.h
 new file mode 100644
 index 0000000..7235bcb
 --- /dev/null
-+++ b/src/include/auncel/yyjson.h
++++ b/src/include/lero/yyjson.h
 @@ -0,0 +1,4221 @@
 +/*==============================================================================
 + * Created by Yaoyuan on 2019/3/9.
@@ -12817,16 +12817,16 @@ index 0000000..7235bcb
 +
 +#endif /* YYJSON_H */
 diff --git a/src/include/optimizer/cost.h b/src/include/optimizer/cost.h
-index 6141654..36cbd52 100644
+index 6141654..461cc43 100644
 --- a/src/include/optimizer/cost.h
 +++ b/src/include/optimizer/cost.h
 @@ -67,6 +67,10 @@ extern PGDLLIMPORT bool enable_parallel_hash;
  extern PGDLLIMPORT bool enable_partition_pruning;
  extern PGDLLIMPORT int constraint_exclusion;
  
-+/** Rap Extension */
-+extern char* auncel_joinest_fname;
-+/** ==== Rap Extension ==== */
++/** Lero Extension */
++extern char* lero_joinest_fname;
++/** ==== Lero Extension ==== */
 +
  extern double index_pages_fetched(double tuples_fetched, BlockNumber pages,
  								  double index_pages, PlannerInfo *root);

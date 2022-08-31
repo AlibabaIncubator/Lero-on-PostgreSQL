@@ -9,11 +9,11 @@ def read_config():
     config = configparser.ConfigParser()
     config.read("server.conf")
 
-    if "auncel" not in config:
-        print("server.conf does not have a [auncel] section.")
+    if "lero" not in config:
+        print("server.conf does not have a [lero] section.")
         exit(-1)
 
-    config = config["auncel"]
+    config = config["lero"]
     return config
 
 def print_log(s, log_path, print_to_std_out=False):
@@ -21,7 +21,7 @@ def print_log(s, log_path, print_to_std_out=False):
     if print_to_std_out:
         print(s)
 
-# Auncel guides the optimizer to generate different plans by changing cardinalities,
+# Lero guides the optimizer to generate different plans by changing cardinalities,
 # but row count will be used as the input feature when predicting the plan score.
 # So we need to restore all the row counts to the original values before feeding the model.
 class PlanCardReplacer():
@@ -49,7 +49,7 @@ class PlanCardReplacer():
             if code in self.table_card_map:
                 pass
             else:
-                self.table_card_map[hash] = card
+                self.table_card_map[code] = card
 
     def replace(self, plan):
         input_card = None
